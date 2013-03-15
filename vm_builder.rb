@@ -14,8 +14,6 @@ class VmBuilder
   def initialize args
     raise TypeError unless args.is_a? Hash
 
-    raise ArgumentError unless ( args.keys.include? :hostname and args.keys.include? :hostgroup )
-
     # set some defaults
     @url  = args.delete(:url)  || "http://127.0.0.1:3000"
     @user = args.delete(:user) || 'admin'

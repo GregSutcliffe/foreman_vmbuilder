@@ -4,20 +4,6 @@ require 'vm_builder'
 # For printing progress dots
 STDOUT.sync = true
 
-### Automated package testing script for Foreman
-#
-# This script uses the Foreman API to spin up a VM in a specified host group,
-# waits until the VM is built, then SSH's in to the new VM (on the IP supplied by
-# Foreman) and installs the latest nightly version of "foreman" and "foreman-sqlite3"
-# It then makes a request to the new instance of Foreman to ensure the packages 
-# have some basic smoke-testing.
-#
-# Pre-requisites
-#
-# * Libvirt on your primary Foreman server
-# * DHCP proxy to suggest IPs
-# * A dedicated Hostgroup with a clean installation template (no puppet, etc)
-#
 # Alter the data below to configre the script
 
 user_data = {
@@ -31,7 +17,7 @@ user_data = {
   :compute_resource => 'Jade',
   :architecture     => 'x86_64',
   :os_name          => 'Debian',
-  :os_version       => '7',
+  :os_version       => '6',
   :location         => 1, # No API calls to figure these out by name yet
   :organisation     => 2
 }
