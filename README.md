@@ -13,12 +13,13 @@ requests. Thus we can do basic smoke testing on submitted PRs and new packages.
   * Standard Debian PXE
   * Standard Debian Install
   * Custom finish which just installs git and curl
-    * _Important_: Don't sign the client cert (`puppet agent --tags no_such_tag` ...)
-    * Doing so will break the installer's puppetmaster module
+
+_Important_: Don't sign the client cert (`puppet agent --tags no_such_tag` ...) -
+signing the cert will break the installer's puppetmaster module
 
 # Usage
 
-Create options.yaml in the same dir as the checkout and populate with appropriate
+Create `options.yaml` in the same dir as the checkout and populate with appropriate
 data. As a minimum, you probably want your credentials and foreman url:
 
     ---
@@ -35,7 +36,7 @@ file from:
     :answersfile: custom.yaml
 
 This would correspond to `https://myforeman/custom.yaml` which would be placed in
-`/public` on the foreman server.
+`/public` on the foreman server. If not specified it defaults to `basic.yaml`
 
 You can optionally specify a port (defaults to 443):
 
@@ -66,7 +67,6 @@ A complete file looks like this:
     - "git pull https://github.com/oxilion/puppet-puppet.git storeconfigs"
     :foreman:
     - "git pull https://github.com/oxilion/puppet-foreman.git storeconfigs"
-    :foreman_proxy:
 
 Finally, run `package_test.rb` which will create the vm and execute the required
 commands. The script will skip host creation if it already exists - optionally you
