@@ -62,7 +62,16 @@ class VmBuilder
       else
         @fullname = JSON.parse(response.body).first['host']['name']
         response = RestClient.get "#{@url}/api/hosts/#{@fullname}", headers
-        puts " [exists, skipped]" if response.code == 200
+        if response.code == 200
+          if @delete == true then
+            print " [exists, deleting]"
+            del_res = RestClient.delete "#{@url}/api/hosts/#{@fullname}", headers
+            raise unless del_res.code == 200
+            raise RestClient::ResourceNotFound # jump to creation
+          else
+            puts " [exists, skipped]"
+          end
+        end
       end
     rescue RestClient::ResourceNotFound
       @fullname = create_host['host']['name']
@@ -79,7 +88,7 @@ class VmBuilder
       sleep 60
     end
     puts " [done]"
-    
+
     print "Waiting for port 22 to open "
     while is_port_open?(ip,22) == false
       sleep 1
@@ -223,8 +232,3 @@ end
 #  @arch=arch['architecture'] if arch['architecture']['name'] == 'i386'
 #end
 
-#unless @arch.nil?
-#  response = RestClient.delete "#{url}/api/architectures/#{@arch['name']}", headers
-#  puts response.body
-#  puts "---"
-#end
