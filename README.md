@@ -34,10 +34,10 @@ You also need to specify some answers (or not, if you just want the defaults :p)
 goes in a block labelled `answers`:
 
     :answers:
-      :puppet: true
-      :puppetmaster: true
-      :foreman: true
-      :foreman_proxy: true
+      puppet: true
+      puppetmaster: true
+      foreman: true
+      foreman_proxy: true
 
 You can optionally specify a port (defaults to 443):
 
@@ -64,10 +64,10 @@ A complete file looks like this:
       :pass: f4nGl3d
       :url: 'https://topaz'
     :answers:
-      :puppet: true
-      :puppetmaster: true
-      :foreman: true
-      :foreman_proxy: true
+      puppet: true
+      puppetmaster: true
+      foreman: true
+      foreman_proxy: true
     :puppet:
     - "git pull https://github.com/oxilion/puppet-puppet.git storeconfigs"
     :foreman:

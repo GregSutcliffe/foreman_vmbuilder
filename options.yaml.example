@@ -5,10 +5,10 @@ options:
   :url: 'http://foreman'
 :port: 3000
 :answers:
-  :puppet: true
-  :puppetmaster: true
-  :foreman: true
-  :foreman_proxy: true
+  puppet: true
+  puppetmaster: true
+  foreman: true
+  foreman_proxy: true
 :puppet:
 :foreman:
 :foreman_proxy:
