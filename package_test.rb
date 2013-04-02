@@ -32,11 +32,11 @@ user_data[:delete] = true if ARGV[0] == "-d"
 final_port = load_data[:port] || 443
 
 # Answers file:
-answers_file = load_data[:answersfile] || 'basic.yaml'
+answers = load_data[:answers] || "---\n"
 
 # Any pull requests to try?
 do_pull_requests = []
-[:puppet,:foreman,:foreman_proxy].each do |mod|
+[:apache,:passenger,:puppet,:foreman,:foreman_proxy,:tftp].each do |mod|
   unless load_data[mod].nil? or load_data[mod].empty?
     do_pull_requests << [
       "cd /tmp/f-i/#{mod.to_s}",
@@ -51,8 +51,8 @@ setup_commands = [
   "rm -rf /tmp/f-i",
   "git clone -b develop --recursive https://github.com/theforeman/foreman-installer /tmp/f-i",
   do_pull_requests,
-  "curl -k #{user_data[:url]}/#{answers_file} -o /tmp/f-i/foreman_installer/answers.yaml",
-  "echo include foreman_installer | puppet apply -v --modulepath /tmp/f-i",
+  "echo -e \"#{answers.to_yaml}\" > /tmp/f-i/foreman_installer/answers.yaml",
+  "echo include foreman_installer | puppet apply -v --modulepath /tmp/f-i --show_diff",
 ].flatten
 
 ### Code starts here ###

@@ -30,13 +30,14 @@ data. As a minimum, you probably want your credentials and foreman url:
 
 Add any further options required to override the defaults at the top of `package_test.rb`
 
-You should also specify a URL (relative to your foreman server) to get the answers
-file from:
+You also need to specify some answers (or not, if you just want the defaults :p). That
+goes in a block labelled `answers`:
 
-    :answersfile: custom.yaml
-
-This would correspond to `https://myforeman/custom.yaml` which would be placed in
-`/public` on the foreman server. If not specified it defaults to `basic.yaml`
+    :answers:
+      :puppet: true
+      :puppetmaster: true
+      :foreman: true
+      :foreman_proxy: true
 
 You can optionally specify a port (defaults to 443):
 
@@ -52,8 +53,8 @@ need to be tested together:
     - "git pull https://github.com/oxilion/puppet-foreman.git storeconfigs"
 
 You can get the correct command direct from the PR notification email that Github
-sends out. Currently only puppet, foreman, and foreman\_proxy are checked for PRs,
-adding more is easy enough.
+sends out. These are executed as shell commands on the new vm, so you can do anything
+you need to, such as checking out specific versions of a module, etc.
 
 A complete file looks like this:
 
@@ -62,7 +63,11 @@ A complete file looks like this:
       :user: admin
       :pass: f4nGl3d
       :url: 'https://topaz'
-    :answersfile: custom.yaml
+    :answers:
+      :puppet: true
+      :puppetmaster: true
+      :foreman: true
+      :foreman_proxy: true
     :puppet:
     - "git pull https://github.com/oxilion/puppet-puppet.git storeconfigs"
     :foreman:
@@ -70,7 +75,7 @@ A complete file looks like this:
 
 Finally, run `package_test.rb` which will create the vm and execute the required
 commands. The script will skip host creation if it already exists - optionally you
-can pass `-d` to delete and reinstall the host
+can pass `-d` to delete and recreate the host
 
 # License / Copyright
 
