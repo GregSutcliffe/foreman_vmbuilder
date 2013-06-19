@@ -169,6 +169,12 @@ class VmBuilder
     @operatingsystem_id = JSON.parse(response.body).select { |k| k['operatingsystem']['name'] == @os_name and k['operatingsystem']['major'] == @os_version }.first['operatingsystem']['id']
   end
 
+  def environment_id
+    return @environment_id unless @environment_id.nil?
+    response = RestClient.get "#{@url}/api/environments/#{@environment}", headers
+    @environment_id = JSON.parse(response.body)['environment']['id']
+  end
+
   def create_host
     # Create it
     host_hash = {
@@ -180,26 +186,21 @@ class VmBuilder
         "organization_id"     => @organisation,
         "architecture_id"     => architecture_id,
         "operatingsystem_id"  => operatingsystem_id,
+        "environment_id"      => environment_id,
         "build"               => 1,
+        "provision_method"    => "image",
         "compute_attributes"  => {
-          "volumes_attributes" => {
-            "0" => {
-              "format_type" => "raw",
-              "capacity"    => @disk_size,
-              "pool_name"   => "default",
-            },
-          },
-          "nics_attributes" => {
-            "0" => { "bridge"  => @net_dev },
-          },
-          "start"=>"1",
-          "memory"=>"536870912",
-          "cpus"=>"1",
-        },
+          "flavor_ref"          => "2",
+          "image_ref"           => "252861eb-f1a6-4243-9152-9ae58434341b",
+          "tenant_id"           => "b7b85528b7c448d9bdec77148c2e8a97",
+          "security_groups"     =>"default",
+          "network"             =>"public",
+        }
       },
+      "capabilities"=>"image",
     }
 
-    response = RestClient.post "#{@url}/api/hosts", host_hash, headers
+    response = RestClient::Request.execute(:method => :post, :url => "#{@url}/api/hosts", :payload => host_hash, :headers => headers, :timeout => 600)
     return JSON.parse(response.body)
   end
 

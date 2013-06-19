@@ -17,6 +17,7 @@ user_data = {
   :net_dev          => 'br0',
   :disk_size        => '5G',
   :hostgroup        => 'Packaging',
+  :environment      => 'production',
   :compute_resource => 'Jade',
   :architecture     => 'x86_64',
   :os_name          => 'Debian',
@@ -48,6 +49,7 @@ end
 
 # These will be joined with "&&" and executed over SSH
 setup_commands = [
+  "echo -en 'Puppet version: ' && puppet --version",
   "rm -rf /tmp/f-i",
   "git clone -b develop --recursive https://github.com/theforeman/foreman-installer /tmp/f-i",
   do_pull_requests,
