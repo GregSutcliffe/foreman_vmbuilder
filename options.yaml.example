@@ -5,11 +5,13 @@ options:
   :url: 'http://foreman'
 :port: 3000
 :answers:
-  puppet: true
-  puppetmaster: true
+  puppet: false
+  puppetmaster:
+    git_repo: true
   foreman: true
   foreman_proxy: true
 :puppet:
+- "git pull https://github.com/mcanevet/puppet-foreman foreman_user_provider"
 :foreman:
 :foreman_proxy:
 :apache:

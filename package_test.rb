@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'yaml'
-require 'vm_builder'
+require './vm_builder'
 # For printing progress dots
 STDOUT.sync = true
 
@@ -20,7 +20,7 @@ user_data = {
   :compute_resource => 'Jade',
   :architecture     => 'x86_64',
   :os_name          => 'Debian',
-  :os_version       => '6',
+  :os_version       => '7',
   :location         => 1, # No API calls to figure these out by name yet
   :organisation     => 2,
   :delete           => false,
