@@ -1,115 +1,89 @@
 require 'rubygems'
+require 'tempfile'
 require 'socket'
 require 'timeout'
-require 'rest_client'
-require 'base64'
-require 'json'
 require 'net/ssh'
-require 'uri'
 
+# set prefix
+$hammer = "bundle exec bin/hammer --output csv"
+
+# New hammer awesomeness
 class VmBuilder
 
-  attr_accessor :fullname
+  attr_accessor :name
 
   def initialize args
     raise TypeError unless args.is_a? Hash
-
-    # set some defaults
-    @url  = args.delete(:url)  || "http://127.0.0.1:3000"
-    @user = args.delete(:user) || 'admin'
-    @pass = args.delete(:pass) || 'changeme'
-
-    # Make a class var out of all the remaining args
+    #
+    # Make a class var out of all the args
     args.each { |k,v| instance_variable_set "@#{k}", v }
+
+    @host     = generate_name(@name)
+    @hg_id    = get_id_from_name("hostgroup",@hostgroup)
+    @cr_id    = get_id_from_name("compute_resource",@compute_resource)
+    @image_id = get_image_uuid(@cr_id,@image)
   end
 
-  def headers(user=@user,pass=@pass)
-    { "Content_Type" => 'application/json', "Accept" => 'application/json', "Authorization" => "Basic #{Base64.encode64("#{@user}:#{@pass}")}" }
+  def hostname
+    @host
   end
 
-  def check_connection 
-    begin
-      response = RestClient.get "#{@url}/status", headers
-      if response.code == 200
-        puts "Connection to #{@url} ok: Foreman version #{JSON.parse(response.body)['version']}"
-      else
-        puts "Bad response from #{@url}: #{response.code} : #{response.body}"
-        exit 1
-      end
-      response = RestClient.get "#{@url}/hosts", headers
-      if response.code == 200
-        puts "Auth Connection to #{@url} ok: #{JSON.parse(response.body).size} hosts found"
-      end
-    rescue Errno::ECONNREFUSED => e
-      puts "Connection refused from: #{@url}"
-      exit 2
-    rescue RestClient::Request::Unauthorized => e
-      puts "Got 401 Unauthorized: check your credentials"
-      exit 3
-    rescue => e
-      puts "Problem testing connection to #{@url}: #{e.message}\n#{e.class}"
-      puts e.backtrace
-      exit 4
-    end
+  def create_cmd
+    cmd  = "#{$hammer}"
+    cmd += " host create --name #{@host}"
+    cmd += " --hostgroup-id #{@hg_id}"
+    cmd += " --compute-resource-id #{@cr_id}"
+    cmd += " --compute-attributes 'flavor_ref=1,image_ref=#{@image_id},network=public'"
+    cmd += " --parameters 'foreman-repo=#{@deb_repo}'"
+    cmd
   end
 
-  def check_and_create_host
-    begin
-      print "Creating host '#{@hostname}'"
-      response = RestClient.get "#{@url}/api/hosts", headers.merge({:params => {:search => "name ~ #{@hostname}"}})
-      if JSON.parse(response.body).empty?
-        raise RestClient::ResourceNotFound
-      else
-        @fullname = JSON.parse(response.body).first['host']['name']
-        response = RestClient.get "#{@url}/api/hosts/#{@fullname}", headers
-        if response.code == 200
-          if @delete == true then
-            print " [exists, deleting]"
-            del_res = RestClient.delete "#{@url}/api/hosts/#{@fullname}", headers
-            raise unless del_res.code == 200
-            raise RestClient::ResourceNotFound # jump to creation
-          else
-            puts " [exists, skipped]"
-          end
-        end
-      end
-    rescue RestClient::ResourceNotFound
-      @fullname = create_host['host']['name']
-      puts " [done]"
-    rescue => e
-      puts e.message
-    end
+  def create!
+    `#{create_cmd}`
   end
 
-  def wait_for_connection
-    print "Waiting for host to finish install "
-    while get_host_status == 'Pending Installation'
-      print '.'
-      sleep 60
-    end
-    puts " [done]"
+  def delete!
+    `#{$hammer} host delete --id #{info[:id]}`
+  end
 
+  def test_foreman
+    # Assume a puppet run has been done, so we should have one host in Hosts
+    file = Tempfile.new('hammer')
+    file.write("
+:modules:
+- hammer_cli_foreman
+:foreman:
+  :host: 'https://#{info[:ip]}/'
+  :username: 'admin'
+  :password: 'changeme'
+")
+    file.close
+    puts `bundle exec bin/hammer -c #{file.path} --output csv host list`
+    file.unlink    # deletes the temp file
+  end 
+
+  def wait_for_ssh!
     print "Waiting for port 22 to open "
-    while is_port_open?(ip,22) == false
+    while is_port_open?(info[:ip],22) == false
       sleep 1
       print '.'
     end
     puts " [done]"
+
+    print "Waiting for build state to complete "
+    while info(true)[:build] == "true"
+      sleep 5
+      print '.'
+    end
+    puts " [done]"
   end
 
-  def ip
-    return @ip unless @ip.nil?
-    res = RestClient.get("#{@url}/api/hosts/#{@fullname}", headers)
-    @ip = JSON.parse(res.body)['host']['ip']
-    return @ip
-  end
-
-  def ssh_setup(commands)
+  def ssh commands 
     puts "SSHing to target"
     puts "----------------"
     # TODO: Could move all this to a custom finish-script for the packaging hostgroup
     begin
-      Net::SSH.start(ip, 'root', :password => 'test', :paranoid=>false) do |ssh|
+      Net::SSH.start(info[:ip], 'root', :password => 'test', :paranoid=>false) do |ssh|
         # open a new channel and configure a minimal set of callbacks, then run
         # the event loop until the channel finishes (closes)
         channel = ssh.open_channel do |ch|
@@ -137,71 +111,41 @@ class VmBuilder
     end
   end
 
-
   private
 
-  def get_host_status
-    response = RestClient.get "#{@url}/api/hosts/#{@fullname}/status", headers
-    return JSON.parse(response.body)['status']
+  def get_id_from_name resource, name
+    `#{$hammer} #{resource} list`.split("\n").each do |line|
+      return line.split(',').first if line.match(/#{name}/)
+    end
+    puts "#{resource.capitalize}: '#{name}' not found"
+    exit 1
   end
 
-  def hostgroup_info
-    return @hostgroup_info unless @hostgroup_info.nil?
-    response = RestClient.get "#{@url}/api/hostgroups/#{@hostgroup}", headers
-    @hostgroup_info = JSON.parse(response.body)['hostgroup']
+  def get_image_uuid cr_id, name
+    `#{$hammer} compute_resource image list --compute-resource-id #{cr_id}`.split("\n").each do |line|
+      return line.split(',')[3] if line.match(/#{name}/)
+    end
+    puts "Image '#{name}' not found"
+    exit 2
   end
 
-  def compute_resource_id
-    return @compute_resource_id unless @compute_resource_id.nil?
-    response = RestClient.get "#{@url}/api/compute_resources/#{@compute_resource}", headers
-    @compute_resource_id = JSON.parse(response.body)['compute_resource']['id']
+  def generate_name name
+    size = `#{$hammer} host list --search "name ~ #{name}"`.split("\n").size
+    # 'size' includes the header, i.e (N results)+1
+    size > 1 ? "#{name}#{size}" : "#{name}1"
   end
 
-  def architecture_id
-    return @architecture_id unless @architecture_id.nil?
-    response = RestClient.get "#{@url}/api/architectures/#{@architecture}", headers
-    @architecture_id = JSON.parse(response.body)['architecture']['id']
-  end
-
-  def operatingsystem_id
-    return @operatingsystem_id unless @operatingsystem_id.nil?
-    response = RestClient.get "#{@url}/api/operatingsystems", headers
-    @operatingsystem_id = JSON.parse(response.body).select { |k| k['operatingsystem']['name'] == @os_name and k['operatingsystem']['major'] == @os_version }.first['operatingsystem']['id']
-  end
-
-  def environment_id
-    return @environment_id unless @environment_id.nil?
-    response = RestClient.get "#{@url}/api/environments/#{@environment}", headers
-    @environment_id = JSON.parse(response.body)['environment']['id']
-  end
-
-  def create_host
-    # Create it
-    host_hash = {
-      "host" => {
-        "name"                => @hostname,
-        "hostgroup_id"        => hostgroup_info['id'],
-        "compute_resource_id" => compute_resource_id,
-        "location_id"         => @location,
-        "organization_id"     => @organisation,
-        "architecture_id"     => architecture_id,
-        "operatingsystem_id"  => operatingsystem_id,
-        "environment_id"      => environment_id,
-        "build"               => 1,
-        "provision_method"    => "image",
-        "compute_attributes"  => {
-          "flavor_ref"          => "2",
-          "image_ref"           => "252861eb-f1a6-4243-9152-9ae58434341b",
-          "tenant_id"           => "b7b85528b7c448d9bdec77148c2e8a97",
-          "security_groups"     =>"default",
-          "network"             =>"public",
-        }
-      },
-      "capabilities"=>"image",
-    }
-
-    response = RestClient::Request.execute(:method => :post, :url => "#{@url}/api/hosts", :payload => host_hash, :headers => headers, :timeout => 600)
-    return JSON.parse(response.body)
+  def info clear_cache = false
+    return @info unless @info.nil? || clear_cache
+    @info = {}
+    #TODO: fix the domain hardcoding
+    data = `#{$hammer} --output base host info --name "#{@host}.elysium.emeraldreverie.org"`.split("\n")
+    data.each do |item|
+      k,v = item.gsub(/\s/,'').split(':')
+      next if k.nil? or v.nil?
+      @info[k.downcase.to_sym] = v
+    end
+    @info
   end
 
   def is_port_open?(ip, port)
@@ -222,14 +166,3 @@ class VmBuilder
   end
 
 end
-
-# ---- reference
-
-#@arch=nil
-#response = RestClient.get "#{url}/api/architectures", headers
-#puts response.body
-#puts "---"
-#JSON.parse(response.body).each do |arch|
-#  @arch=arch['architecture'] if arch['architecture']['name'] == 'i386'
-#end
-
